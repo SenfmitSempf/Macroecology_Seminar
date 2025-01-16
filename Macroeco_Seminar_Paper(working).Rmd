@@ -1,9 +1,137 @@
 ---
 #Macroecology seminar paper
 ---
+```{r}
+sp_dat <- read.table('UK_BBatlas_2008.csv',header=T, sep=',', stringsAsFactors = F)
+
+
+# Nur die Spalten mit Zielart, der zweiten und dritten Spalte behalten
+data_filtered <- sp_dat[, c(1:3, which(colnames(sp_dat) == "Pandion_haliaetus"))]
+
+
+# Ergebnis speichern (optional)
+write.csv(data_filtered, "UK_BBatlas_2008_filtered.csv", row.names = FALSE)
+
+
+
+
+sp.dat <- terra::rast("osprey_08.tif")
+ranges_opsrey <- terra::rast("ranges_osprey.tif")
+
+
+```
 
 
 ```{r}
+water <- terra::rast("water_5min_UK.tif")
+bg <- terra::rast('Prac3_UK_mask.tif')
 
+library(terra)
+library(geodata)
+
+# Please note that you have to set download=T if you haven't downloaded the data before:
+bio_curr <- geodata::worldclim_country('GB', var = 'bio', res = 5, download = T, path = 'data')
+
+# Please note that you have to set download=T if you haven't downloaded the data before:
+bio_fut585 <- geodata::cmip6_world(model='UKESM1-0-LL', ssp='585', time='2041-2060', var='bioc', download=T, res=5, path='data')
+
+
+
+# Please note that you have to set download=T if you haven't downloaded the data before:
+bio_fut370 <- geodata::cmip6_world(model='UKESM1-0-LL', ssp='370', time='2041-2060', var='bioc', download=F, res=5, path='data')
+
+
+
+# Please note that you have to set download=T if you haven't downloaded the data before:
+bio_fut245 <- geodata::cmip6_world(model='UKESM1-0-LL', ssp='245', time='2041-2060', var='bioc', download=F, res=5, path='data')
+```
+
+
+Reproject to the UK
+```{r}
+# the approx. spatial extent of UK in lon/lat coordinates
+extent_uk <- c(-12, 3, 48, 62)
+
+# Crop and reproject current climate
+bio_curr <- terra::crop(bio_curr, extent_uk)
+bio_curr <- terra::project(bio_curr, bg)
+bio_curr <- terra::mask(bio_curr, bg)
+
+# Crop and reproject future climate
+bio_fut245 <- terra::crop(bio_fut245, extent_uk)
+bio_fut245 <- terra::project(bio_fut245, bg)
+bio_fut245 <- terra::mask(bio_fut245, bg)
+
+# Crop and reproject future climate
+bio_fut370 <- terra::crop(bio_fut370, extent_uk)
+bio_fut370 <- terra::project(bio_fut370, bg)
+bio_fut370 <- terra::mask(bio_fut370, bg)
+
+# Crop and reproject future climate
+bio_fut585 <- terra::crop(bio_fut585, extent_uk)
+bio_fut585 <- terra::project(bio_fut585, bg)
+bio_fut585 <- terra::mask(bio_fut585, bg)
+
+save(bio_fut245, bio_fut370, bio_fut585, bio_curr,file='Data/climateUK.RData')
+```
+
+change names
+```{r}
+names(bio_curr) <- names(bio_fut245) <- names(bio_fut370) <- names(bio_fut585)  <- names(osprey)[-c(1:5, 25:26)]
+```
+
+Joining water bodies and climate
+```{r}
+env_cur <- c(bio_curr, water)
+```
+
+
+```{r}
+proj_UK <- '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +datum=OSGB36 +units=m +no_defs'
+
+
+water_and_climate <- (terra::extract(x = env_cur, 
+    y = data.frame(data_filtered[,c('EASTING','NORTHING')]), 
+    cells=T, 
+    crs=proj_UK, 
+    type='xyz',
+    xy=TRUE)) 
+    
+
+```
+
+
+```{r}
+# Finally, we put species and environmental data into the same data frame:
+osprey <- cbind(data_filtered, water_and_climate)
+
+# Check for duplicates - how many duplicates?
+sum(duplicated(osprey$cell))
+```
+```{r}
+# Erstelle einen Vektor mit den neuen Namen für die Spalten
+new_column_names <- paste0("bio", 1:19)
+
+# Benenne die Spalten 6 bis 24 um
+colnames(osprey)[6:24] <- new_column_names
+
+osprey <- osprey[, -c(27, 28)]
+
+osprey_noNA <- na.omit(osprey)
+
+# Überprüfe die Tabelle
+head(osprey)
+
+save(osprey, osprey_noNA,file='Data/ospreyANDosprey_noNA.RData')
+```
+
+
+Plot only the NA's
+```{r}
+osprey[is.na(osprey)] <- "D"
+
+onlyNA <- subset(osprey, bio1=="D")
+
+plot(onlyNA$EASTING,onlyNA$NORTHING)
 ```
 
