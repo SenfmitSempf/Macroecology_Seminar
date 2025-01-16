@@ -1,0 +1,89 @@
+---
+title: "a6_BiodiversityChanges_UriWeingarten"
+author: "Uri Weingarten"
+date: "2024-11-25"
+output: html_document
+---
+# Preperation
+
+## Libraries
+```{r}
+library(tidyterra)
+library(ggplot2)
+library(terra)
+```
+
+## Data
+
+```{r}
+bird_dist <- read.table('data/UK_BBatlas_1968_2008/UK_BBatlas_1968_20082.csv',header=T, sep=',', stringsAsFactors = F)
+
+redlist_status <- read.table('data/Red list data-20241114/UK_birds_redlist_status.csv', header=T, sep=',')
+```
+
+
+# Set ranges of Osprey
+```{r}
+#Define proj_UK for nitting
+
+proj_UK <- '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +datum=OSGB36 +units=m +no_defs'
+
+
+
+# ranges Osprey
+osprey_68 <- terra::rast(subset(bird_dist,period=='1968-72')[,c('EASTING','NORTHING','Pandion_haliaetus')], crs=proj_UK, type='xyz')
+osprey_88 <- terra::rast(subset(bird_dist,period=='1988-91')[,c('EASTING','NORTHING','Pandion_haliaetus')], crs=proj_UK, type='xyz')
+osprey_08 <- terra::rast(subset(bird_dist,period=='2008-11')[,c('EASTING','NORTHING','Pandion_haliaetus')], crs=proj_UK, type='xyz')
+```
+
+## Stacl the SpatRasters
+```{r}
+ranges_osprey <- c(osprey_68, osprey_88, osprey_08)
+names(ranges_osprey) <- c("Osprey 1968-72", "Osprey 1988-91", "Osprey 2008-11")
+
+# Plot the range in different time periods
+ggplot() +
+  geom_spatraster(data = ranges_osprey) +
+  facet_wrap(~lyr, ncol = 3) +
+ scale_fill_whitebox_c(
+   direction=-1,
+   guide = guide_legend(reverse = TRUE),
+   n.breaks=2
+  ) +
+  labs(fill = "Presence")
+```
+```{r}
+# So in this optimistic case, the Osprey, which became locally extinct in 1847 at England and Wales. 1916: ospreys became locally extinct in Scotland. It seems to have recovered since the 1968, mainly due to reintroduction programmes
+
+# In 1954, a pair of ospreys naturally recolonized Scotland, nesting at Loch Garten in the Scottish Highlands. This marked the start of the species' return to the UK.
+
+# Conservationists provided protection and monitored the nest, leading to the successful fledging of chicks.
+
+# The Royal Society for the Protection of Birds (RSPB) created a dedicated protection program at Loch Garten.
+
+# This site became a focal point for osprey conservation and public awareness, drawing thousands of visitors annually.
+```
+## Stable/Colonize/Decolonised
+
+
+```{r}
+# Compute differences. To distinguish clearly where cells are colonised or decolonised, we assign occurrences in 1968 a value=1 and occurrence in 2008 a value=2:
+dummy <- osprey_08
+values(dummy)[values(dummy)>0 & !is.na(values(dummy))] <- 2
+
+# Sum up the layers. Values=1 indicate presence in 1968, values=2 presence in 2008, values=3 presence in both periods
+diff <- osprey_68+dummy
+
+ggplot() +
+  geom_spatraster(data = diff) +
+ scale_fill_hypso_c(
+   palette = 'dem_poster',
+   direction = -1,
+   guide = guide_legend(reverse = TRUE),
+   n.breaks=4,
+   labels = c("Absent", "Extinction", "Colonisation", "Stable")
+  ) +
+  labs(fill = "")
+```
+
+
